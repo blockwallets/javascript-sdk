@@ -26,7 +26,7 @@
 
 - 1.访问并 登录/注册 [用户后台](https://blockwallets.io/auth/signin)
 - 2.在用户后台查看 API 接入必需的 [api-key](https://blockwallets.io/account/apiKeys)
-  ![index](https://raw.githubusercontent.com/blockapis/public/main/images/wallet/api-key-page.png)
+  ![index](https://raw.githubusercontent.com/blockwallets/public/main/images/wallet/api-key-page.png)
 - 3.下载仓库的源码 demo，点击 index.html，直接通过浏览器开打
 
 ## 支付流程
@@ -47,7 +47,7 @@
 
 ### 支付选项
 
-![index](https://raw.githubusercontent.com/blockapis/public/main/images/wallet/index.png)
+![index](https://raw.githubusercontent.com/blockwallets/public/main/images/wallet/index.png)
 
 ### 1. 创建钱包
 
@@ -138,7 +138,7 @@ async function handleCreateWallet() {
 
 ### 支付中心
 
-![index](https://raw.githubusercontent.com/blockapis/public/main/images/wallet/detail.png)
+![index](https://raw.githubusercontent.com/blockwallets/public/main/images/wallet/detail.png)
 
 ### 2. 等待用户支付
 
