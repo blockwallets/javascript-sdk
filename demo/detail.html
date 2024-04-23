@@ -1,0 +1,297 @@
+<!-- 创建一个支付中心 html 文件: detail.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>支付中心</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.x/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+
+    <style>
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @keyframes dash {
+        0% {
+          stroke-dasharray: 1, 150;
+          stroke-dashoffset: 0;
+        }
+        50% {
+          stroke-dasharray: 90, 150;
+          stroke-dashoffset: -35;
+        }
+        100% {
+          stroke-dasharray: 90, 150;
+          stroke-dashoffset: -124;
+        }
+      }
+    </style>
+  </head>
+  <body class="flex items-center justify-center min-h-screen bg-gray-100">
+    <div class="w-full max-w-4xl bg-white shadow-md rounded p-6">
+      <header>
+        <nav class="py-4" aria-label="Breadcrumb">
+          <ol class="breadcrumb flex leading-none">
+            <li class="pr-4">
+              <a class="text-blue-500" href="index.html">支付选项</a>
+            </li>
+            >
+            <li class="px-4">支付中心</li>
+          </ol>
+        </nav>
+        <h1 class="text-2xl font-bold py-4">支付中心</h1>
+      </header>
+      <hr />
+      <div class="flex flex-col space-y-4">
+        <div class="flex justify-between items-center">
+          <div id="walletInfo" class="flex-grow"></div>
+          <div id="qrcode" class="pr-6"></div>
+        </div>
+        <hr />
+        <h1 class="text-xl font-bold py-1">您的付款</h1>
+        <div class="flex justify-between items-center">
+          <p>如果您的付款没有出现在下面的付款列表中，请点击“刷新”按钮。</p>
+          <button
+            id="refreshButton"
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded"
+          >
+            刷新
+          </button>
+        </div>
+
+        <div id="transactionsTable" class="flex-grow pb-6"></div>
+      </div>
+    </div>
+    <!-- 引入 QRCode.js 库 用来生成钱包二维码 -->
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <script>
+      // 格式化时间方法
+      // formatDateTime 将 JavaScript Date 对象转换为“YYYY-MM-DD HH:MM:SS”格式的字符串
+      function formatDateTime(date) {
+        const pad = (num) => (num < 10 ? '0' + num : num);
+
+        const year = date.getFullYear();
+        const month = pad(date.getMonth() + 1); // 月份从0开始，所以加1
+        const day = pad(date.getDate());
+        const hour = pad(date.getHours());
+        const minute = pad(date.getMinutes());
+        const second = pad(date.getSeconds());
+
+        return `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+      }
+
+      // DOMContentLoaded 此事件监听确保所有 HTML 元素完全加载后才执行脚本，避免 DOM 元素未完全加载就被访问，从而引发错误
+      document.addEventListener('DOMContentLoaded', function () {
+        const URL =
+          'https://api.blockwallets.io/api/v1/block/trons/transaction/record/gather'; // 请求服务器 URL
+        const startTime = formatDateTime(new Date()); // 设置初始加载时间(用来查看最新交易)
+        let payStatus = false; // 初始支付状态设置为 false
+
+        // 从 url 中获取参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const payInfo = {
+          tokenType: decodeURIComponent(urlParams.get('tokenType')),
+          transactionType: decodeURIComponent(urlParams.get('transactionType')),
+          apiKey: decodeURIComponent(urlParams.get('apiKey')),
+          address: decodeURIComponent(urlParams.get('address'))
+        };
+
+        // 设置钱包相关显示信息
+        const walletInfo = document.getElementById('walletInfo');
+        walletInfo.innerHTML = `
+            <p class="pb-2 pt-4">最低充值 0.000001 ${payInfo.transactionType}，发送到下面指定的钱包：</p>
+            <p class="py-2">钱包地址：${payInfo.address}</p>
+            <p class="py-2">交易类型：${payInfo.transactionType}</p>
+            <div id='payStatus' class="flex items-center space-x-3">
+                  <p class="py-2">交易状态：</p>
+                  <button class="flex items-center justify-center">
+                      <svg class="animate-spin h-8 w-8" viewBox="0 0 50 50">
+                          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke="currentColor" stroke-linecap="round" style="stroke-dasharray: 1, 200; stroke-dashoffset: 0; animation: dash 1.5s ease-in-out infinite;"></circle>
+                      </svg>
+                  </button>
+              </div>
+        `;
+
+        // 生成钱包二维码
+        new QRCode(document.getElementById('qrcode'), {
+          text: payInfo.address,
+          width: 128,
+          height: 128,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // 异步函数，用于从服务器获取最近的交易记录并更新页面显示。此函数在用户点击“刷新”按钮时触发
+        // 最近10条交易记录
+        async function handleRefresh() {
+          const params = {
+            address: payInfo.address, // 钱包地址
+            token_type: payInfo.tokenType, // 代币类型
+            limit: 10 // 查询条数
+          };
+          const queryString = new URLSearchParams(params).toString();
+          const url = `${URL}?${queryString}`;
+          const headers = new Headers({
+            'Content-Type': 'application/json',
+            'api-key': payInfo.apiKey
+          });
+
+          await fetch(url, { method: 'GET', headers: headers })
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error('网络请求失败');
+              }
+              return response.json();
+            })
+            .then((data) => {
+              if (data.data.results) {
+                const transactions = data.data.results;
+
+                displayTransactions(transactions);
+              } else {
+                const container = document.getElementById('transactionsTable');
+                container.innerHTML = `
+                                    <hr />
+                                    <p class="py-8">暂无交易数据</p>
+                                    `;
+              }
+            })
+            .catch((error) => {
+              console.error('加载数据时发生错误:', error);
+            });
+        }
+
+        // 动态创建表格并填充交易数据。此函数在获取到新的交易数据后调用，用于在页面上展示交易详情
+        function displayTransactions(transactions) {
+          const table = document.createElement('table');
+          table.className = 'w-full';
+          table.innerHTML = `
+                        <tr class="bg-gray-200 text-left">
+                            <th class="px-4 py-2">付款钱包地址</th>
+                            <th class="px-4 py-2">支付时间</th>
+                            <th class="px-4 py-2">交易方式</th>
+                            <th class="px-4 py-2">金额</th>
+                            <th class="px-4 py-2">交易类型</th>
+                            <th class="px-4 py-2">付款状态</th>
+                        </tr>
+                        `;
+          transactions.forEach((transaction) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                            <td class="border px-4 py-2">${
+                              transaction.owner_address
+                            }</td>
+                            <td class="border px-4 py-2">${
+                              transaction.time
+                            }</td>
+                            <td class="border px-4 py-2">${
+                              transaction.category === 'expenses'
+                                ? '支出'
+                                : '收入'
+                            }</td>
+                            <td class="border px-4 py-2">${
+                              transaction.amount
+                            }</td>
+                            <td class="border px-4 py-2">${
+                              transaction.transaction_type
+                            }</td>
+                            <td class="border px-4 py-2">${
+                              transaction.contract_ret === 'SUCCESS'
+                                ? '成功'
+                                : '失败'
+                            }</td>
+                        `;
+            table.appendChild(row);
+          });
+          const container = document.getElementById('transactionsTable');
+          container.innerHTML = '';
+          container.appendChild(table);
+        }
+
+        // 获取最新交易记录
+        // 检测新交易并更新状态
+        async function handleNewTransaction() {
+          const params = {
+            address: payInfo.address,
+            token_type: payInfo.tokenType,
+            start_time: startTime
+          };
+          const queryString = new URLSearchParams(params).toString();
+          const url = `${URL}?${queryString}`;
+          const headers = new Headers({
+            'Content-Type': 'application/json',
+            'api-key': payInfo.apiKey
+          });
+
+          try {
+            const response = await fetch(url, {
+              method: 'GET',
+              headers: headers
+            });
+            if (!response.ok) {
+              throw new Error('网络请求失败');
+            }
+            const data = await response.json();
+            if (data.data.results) {
+              const transactions = data.data.results;
+
+              const newSuccessfulTransaction = transactions.some(
+                (transaction) => transaction.category === 'income'
+              );
+              if (newSuccessfulTransaction) {
+                // 支付成功
+                payStatus = true; // 修改支付状态
+
+                // 重新渲染支付状态信息
+                const payStatusHtml = document.getElementById('payStatus');
+                payStatusHtml.innerHTML = `
+                                    <div id='payStatus' class="flex items-centers">
+                                    <p class="py-2">支付状态：</p>
+                                    <span class="text-green-500 py-2">已支付</span>
+                                    </div>
+                                `;
+
+                // 重新更新交易列表信息
+                await handleRefresh();
+              }
+            }
+          } catch (error) {
+            console.error('获取新交易时出错: ', error);
+          }
+        }
+
+        // 为 refreshButton 绑定事件
+        // 刷新按钮事件  当用户点击刷新按钮时，调用 handleRefresh 函数重新从服务器获取交易记录，并更新页面显示
+        const refreshButton = document.getElementById('refreshButton');
+        refreshButton.addEventListener('click', async function () {
+          refreshButton.disabled = true; // 禁用按钮
+          await handleRefresh(); // 等待异步操作完成
+          refreshButton.disabled = false; // 操作完成后启用按钮
+        });
+
+        // 页面初始化加载
+        handleRefresh();
+
+        // 检测最新支付状态定时任务
+        // 定时任务: 每 20 秒执行一次 handleNewTransaction 函数，以检测是否有新的成功交易。这保证了页面上的交易信息和支付状态是最新的
+        const timer = setInterval(() => {
+          // 只有当支付状态为 false 时执行
+          if (!payStatus) {
+            handleNewTransaction();
+          }
+        }, 20000); // 每20秒执行一次
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,251 @@
+<!-- 创建一个支付选项 html 文件: index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>支付选项示例</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.x/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="flex min-h-screen items-center justify-center bg-gray-100">
+    <div class="w-full max-w-3xl rounded-lg bg-white p-5 shadow">
+      <div class="pl-2 text-2xl">支付选项</div>
+      <div class="flex pt-8 pl-2 text-base">
+        <span class="w-20 pt-2">api-key:</span>
+        <input
+          type="text"
+          name="apiKey"
+          placeholder="请输入 api-key"
+          class="text-grey-darker w-full appearance-none rounded border px-3 py-2 shadow"
+          id="apiKeyInput"
+          value=""
+        />
+      </div>
+      <div class="flex pt-4 pl-2 text-base">
+        <span class="w-24 pt-2">钱包地址:</span>
+        <input
+          type="text"
+          name="addressInput"
+          placeholder="请输入钱包地址"
+          class="text-grey-darker w-full appearance-none rounded border px-3 py-2 shadow"
+          id="addressInput"
+        />
+        <button
+          id="createWalletButton"
+          class="ml-4 bg-blue-500 hover:bg-blue-700 text-white font-bold rounded w-28"
+        >
+          创建钱包
+        </button>
+      </div>
+      <table class="mt-4 mb-6 min-w-full leading-normal">
+        <thead>
+          <tr>
+            <th
+              colspan="4"
+              class="border-b-2 border-gray-200 bg-gray-100 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700"
+            >
+              请选择您要支付的选项
+            </th>
+            <!-- 由于此<th>填充了整行，其他列的表头在这一行将不再需要 -->
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- 表格内容将通过JavaScript动态生成 -->
+        </tbody>
+      </table>
+    </div>
+
+    <script>
+      const URL = 'https://api.blockwallets.io/api/v1/block/wallets'; // 请求服务端 URL
+      const PUSH_ROUTER = 'detail.html'; // 跳转到指定支付中心页面
+
+      // 查询钱包信息
+      // 此函数在用户点击支付选项时触发。
+      // 它首先对 API 密钥 和 钱包地址 进行编码，构建 API 请求的查询参数和头部。
+      // 向服务器发送 fetch 请求以获取钱包信息。如果请求失败或返回无数据，将显示适当的消息。
+      // 成功检索数据后，该函数会构建一个带有查询参数的 URL，用于支付详情，并重定向用户至该 URL。
+      async function fetchWalletInfo(item) {
+        const apiKey = encodeURIComponent(apiKeyInput.value); // 获取当前apiKey输入框的值并进行URL编码
+        const address = encodeURIComponent(addressInput.value); // 获取当前address输入框的值并进行URL编码
+
+        // 校验 api-key 输入是否为空
+        if (apiKey.length === 0) {
+          alert('请先填写 api-key');
+          return null;
+        }
+
+        // 校验钱包地址输入是否为空
+        if (address.length === 0) {
+          alert('请先填写钱包地址');
+          return null;
+        }
+
+        // 校验 api-key 和 钱包地址是否正确
+        try {
+          const response = await fetch(`${URL}/${address}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'api-key': apiKey
+            }
+          });
+
+          // 返回原始错误信息
+          if (!response.ok) {
+            throw response;
+          }
+
+          const resData = await response.json();
+          const data = resData.data;
+          const result = data.result;
+
+          if (result) {
+            // 构造带有参数的URL
+            const url = `${PUSH_ROUTER}?tokenType=${encodeURIComponent(
+              item.tokenType
+            )}&transactionType=${encodeURIComponent(
+              item.transactionType
+            )}&apiKey=${apiKey}&address=${encodeURIComponent(result.address)}`;
+            window.location.href = url; // 重定向到URL
+          }
+        } catch (error) {
+          try {
+            const errorData = await error.json();
+            const errorMessage = errorData.error.message;
+
+            alert(errorMessage);
+          } catch (error) {
+            alert('Network Error');
+          }
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const items = [
+          {
+            id: 1,
+            tokenType: 'TRX',
+            transactionType: 'TRX',
+            avatar: 'https://static.tronscan.org/production/logo/trx.png',
+            description: '使用Tether TRX (TRON)支付'
+          },
+          {
+            id: 2,
+            tokenType: 'TRC20',
+            transactionType: 'USDT',
+            avatar: 'https://static.tronscan.org/production/logo/usdtlogo.png',
+            description: '使用Tether USDT-TRC20 (TRON)支付'
+          }
+        ];
+
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const tableBody = document.getElementById('tableBody');
+
+        items.forEach((item) => {
+          const row = document.createElement('tr');
+          row.className = 'cursor-pointer hover:bg-gray-100'; // 可选：添加样式以提升用户体验
+          row.innerHTML = `
+                       <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                           <img src="${item.avatar}" alt="${item.transactionType}" class="w-8 h-8">
+                       </td>
+                     <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">${item.transactionType}</td>
+                     <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">${item.description}</td>
+
+                 `;
+
+          // 为每一行添加点击事件
+          row.addEventListener('click', function () {
+            fetchWalletInfo(item);
+          });
+
+          tableBody.appendChild(row); // 将行添加到表格主体中
+        });
+
+        // 创建钱包
+        async function handleCreateWallet() {
+          const apiKey = encodeURIComponent(apiKeyInput.value); // 获取当前apiKey输入框的值并进行URL编码
+
+          // 校验 api-key 输入是否为空
+          if (apiKey.length === 0) {
+            alert('请先填写 api-key');
+            return null;
+          }
+
+          const data = {
+            block_category_id: 1 // 区块链类别ID(1:Tron ...)
+          };
+          const headers = {
+            'Content-Type': 'application/json',
+            'api-key': apiKey
+          };
+
+          try {
+            const response = await fetch(URL, {
+              method: 'POST',
+              headers: headers,
+              body: JSON.stringify(data)
+            });
+
+            // 返回原始错误信息
+            if (!response.ok) {
+              throw response;
+            }
+
+            // 获取创建成功之后返回的信息
+            const resData = await response.json();
+            const address = resData.data.result.address;
+
+            // 将获取到新的钱包地址，动态填充到输入框中
+            var inputAddressElement = document.getElementById('addressInput');
+            // 设置新的 value
+            inputAddressElement.value = address;
+
+            // 记录输入值
+            localStorage.setItem('apiKey', apiKey);
+            localStorage.setItem('address', address);
+
+            alert('钱包创建成功');
+          } catch (error) {
+            try {
+              const errorData = await error.json();
+              const errorMessage = errorData.error.message;
+
+              alert(errorMessage);
+            } catch (error) {
+              alert('Network Error');
+            }
+          }
+        }
+
+        // 为 createWalletButton 绑定事件
+        // 刷新按钮事件  当用户点击刷新按钮时，调用 handleCreateWallet 函数重新从服务器获取交易记录，并更新页面显示
+        const createWalletButton =
+          document.getElementById('createWalletButton');
+        createWalletButton.addEventListener('click', async function () {
+          createWalletButton.disabled = true; // 禁用按钮
+          await handleCreateWallet();
+          createWalletButton.disabled = false; // 操作完成后取消禁用按钮
+        });
+
+        // 页面首次加载，查看是否有记录值
+        const apiKey = localStorage.getItem('apiKey');
+        if (apiKey) {
+          var inputApiKeysElement = document.getElementById('apiKeyInput');
+          // 设置新的 value
+          inputApiKeysElement.value = apiKey;
+        }
+
+        const address = localStorage.getItem('address');
+        if (address) {
+          var inputAddressElement = document.getElementById('addressInput');
+          // 设置新的 value
+          inputAddressElement.value = address;
+        }
+      });
+    </script>
+  </body>
+</html>
